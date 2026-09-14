@@ -1,0 +1,43 @@
+#Entropy Weighted Method
+# Load the necessary library
+library(tidyverse)
+
+# Define a function to calculate entropy
+entropy <- function(p) {
+  plogp <- p * log(p)
+  plogp[is.na(plogp)] <- 0
+  -sum(plogp)
+}
+
+# Define a function to calculate the weight of each criterion using EWM for panel data
+ewm_panel <- function(data, id_var, time_var) {
+  # Reshape the data into long format
+  data_long <- data %>% pivot_longer(-c(id_var, time_var), names_to = "criteria", values_to = "value")
+  
+  # Normalize the data within each time period for each unit of analysis
+  data_norm <- data_long %>% 
+    group_by(!!sym(id_var), !!sym(time_var)) %>% 
+    mutate(value_norm = (value - min(value)) / (max(value) - min(value)))
+  
+  # Calculate the entropy of each criterion within each time period for each unit of analysis
+  entropy_scores <- data_norm %>% 
+    group_by(!!sym(id_var), !!sym(time_var), criteria) %>% 
+    summarize(entropy_score = entropy(value_norm)) %>% 
+    ungroup() %>% 
+    group_by(criteria) %>% 
+    summarize(entropy_score = mean(entropy_score))
+  
+  # Calculate the weight of each criterion
+  weights <- (1 - entropy_scores$entropy_score) / sum(1 - entropy_scores$entropy_score)
+  
+  # Return the weights
+  weights
+  #
+}
+
+# Example usage
+library(readxl)
+data_panel <- data.frame(read_excel('Dataset.xlsx'))
+
+Result<-data.frame(ewm_panel(data_panel, id_var = "id", time_var = "time"))
+View(Result)
